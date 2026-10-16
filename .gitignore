@@ -1,0 +1,7 @@
+.diagnostics/
+node_modules/
+DIAGNOSIS.md
+.env
+.env.*
+auth.json
+*.log
