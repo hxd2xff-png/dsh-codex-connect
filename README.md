@@ -13,7 +13,30 @@
    ```
 2. 验证登录态：`codex.cmd login status` 应显示 `Logged in using ChatGPT`。
 
+## 0.1.1 修复
+
+- 用量查询优先读取 `HTTPS_PROXY` / `ALL_PROXY` / `HTTP_PROXY`（含小写）；没有环境代理时，在 Windows 读取当前用户已启用的系统代理。未配置代理则直连，不硬编码个人代理地址。
+- 用量请求设置 20 秒超时；`fetch` 与 `ProxyAgent` 使用同一版本的 `undici`，避免与 Node 内置客户端混用。
+- 首次加载失败不再隐藏整个用量控件，改为显示可点击重试的提示。登录态与模型调用逻辑保持不变。
+- 补齐适配器依赖链中的 DSH peer 声明，新增 `undici` 运行依赖；`pnpm-lock.yaml` 锁定可复现的开发安装。不会打包 `node_modules` 或任何用户凭据。
+
 ## 安装（desktop profile）
+
+推荐在 DSH 插件管理器中从本仓库安装或更新：
+
+```text
+https://github.com/hxd2xff-png/dsh-codex-connect
+```
+
+安装器需启用 peer 自动安装；手动安装时可在 profile 目录运行：
+
+```powershell
+pnpm add github:hxd2xff-png/dsh-codex-connect --config.auto-install-peers=true
+```
+
+然后通过 DSH 的 bundle 管理启用 `dsh-codex-connect`，不要重复插入同名插件。DSH 相关包保留为 peer，避免为宿主服务创建不一致的独立副本；`dsh-llm-pi-ai` 的 brand、util-values 等普通传递依赖由包管理器自动安装。宿主需与声明的 `0.2.0-rc.2` DSH 包版本兼容。
+
+本地源码安装方式：
 
 ```powershell
 # 在 desktop profile 的 package.json 中设置：
@@ -39,12 +62,13 @@ bundle 自带的 `cordis.patch.yml` 会插入宿主插件，不要在 profile �
 
 | 模型 | 上下文 | 图片 |
 |---|---|---|
-| GPT-5.3 Codex Spark | 128k | ❌ |
-| GPT-5.5 | 272k | ✅ |
-| GPT-5.6 Luna | 272k | ✅ |
+| GPT-6.1 Sol | 272k | ✅ |
+| GPT-6 Astra | 272k | ✅ |
+| GPT-6 Sol | 272k | ✅ |
+| GPT-6 Luna | 272k | ✅ |
 | GPT-5.6 Sol | 272k | ✅ |
 | GPT-5.6 Terra | 272k | ✅ |
-| GPT-6 Astra | 272k | ✅ |
+| GPT-5.6 Luna | 272k | ✅ |
 
 ## 工作原理
 
@@ -57,6 +81,19 @@ DSH → PiAiAdapter → pi-ai openAICodexResponsesApi
 - **凭据只读**：插件只读 Codex CLI 的 auth.json，绝不写入。Codex CLI 是身份权威。
 - **续期**：Codex CLI 使用时会自动刷新 auth.json；插件每次请求前检查有效期与文件 mtime，自动拾取 CLI 续期后的新 token。
 - **token 过期时**：跑一次 `codex.cmd exec "hi"` 让 CLI 续期，插件自动恢复。
+
+## 开发与验证
+
+使用支持 Node 22/24 的 pnpm 安装（本次验证使用 pnpm 11.7.0）：
+
+```powershell
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm run check
+```
+
+`check` 检查两端语法并真实导入宿主模块，能发现缺少依赖；它不代表 DSH 中插件已经激活。安装更新后建议完整退出并重新打开 DSH，再刷新页面并检查上面的同源用量接口。不要在当前会话依赖该 provider 时禁用插件，否则该会话会失去 adapter。
+
+用量接口依赖可访问的 ChatGPT 网络与有效的 Codex CLI 登录态。若系统代理变更，需要重新加载插件/进程使新代理生效；本版不管理 PAC 或 SOCKS 代理，也不自动续期登录凭据。Windows 按协议配置代理时读取 `https=` 条目。
 
 ## 已知限制
 
