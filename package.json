@@ -2,7 +2,7 @@
   "name": "dsh-codex-connect",
   "displayName": "DSH Codex Connect",
   "description": "把本地 Codex CLI 已登录的 ChatGPT 订阅模型接入 DeepSeek Harness —— 复用 ~/.codex 登录态，零 OAuth 流程",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hxd2xff-png/dsh-codex-connect.git"
@@ -48,22 +48,22 @@
     "check": "node --check lib/index.js && node --check lib/client.js && node --input-type=module -e \"await import('./lib/index.js'); console.log('Host module import OK')\""
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.87.1",
-    "undici": "^6.29.1"
+    "@earendil-works/pi-ai": "^1.1.0",
+    "undici": "^8.0.0"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
-    "@deepseek-ai/cordis-plugin-loader": "~1.0.5",
-    "@deepseek-ai/dsh-attachment": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-authorization": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-credentials": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-fs": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-host-webserver": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-launch-environment": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-timeout": "0.2.0-rc.2",
-    "@deepseek-ai/schemastery": "~3.18.4",
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
+    "@deepseek-ai/dsh-attachment": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-authorization": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-fs": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-host-webserver": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-launch-environment": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.1",
+    "@deepseek-ai/dsh-timeout": "0.2.1-rc.1",
+    "@deepseek-ai/schemastery": "~3.18.5",
     "react": "^18.2.0"
   }
 }

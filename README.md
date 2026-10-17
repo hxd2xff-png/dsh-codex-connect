@@ -13,12 +13,15 @@
    ```
 2. 验证登录态：`codex.cmd login status` 应显示 `Logged in using ChatGPT`。
 
-## 0.1.1 修复
+## 0.2.0（适配 DSH 0.2.1-rc.1）
 
-- 用量查询优先读取 `HTTPS_PROXY` / `ALL_PROXY` / `HTTP_PROXY`（含小写）；没有环境代理时，在 Windows 读取当前用户已启用的系统代理。未配置代理则直连，不硬编码个人代理地址。
-- 用量请求设置 20 秒超时；`fetch` 与 `ProxyAgent` 使用同一版本的 `undici`，避免与 Node 内置客户端混用。
-- 首次加载失败不再隐藏整个用量控件，改为显示可点击重试的提示。登录态与模型调用逻辑保持不变。
-- 补齐适配器依赖链中的 DSH peer 声明，新增 `undici` 运行依赖；`pnpm-lock.yaml` 锁定可复现的开发安装。不会打包 `node_modules` 或任何用户凭据。
+**根因**：`chatgpt.com` 走不通不是版本号问题，是网络层问题。pi-ai 用 `globalThis.fetch` 发请求且**不读 Windows 系统代理**，Node 的 fetch 同样不读；于是在有系统代理的机器上，模型列表正常但真实对话全部以 `fetch failed` / `PROVIDER_TRANSPORT_FAILURE` 结束。0.1.x 只给用量查询修了代理，聊天链路没修——这才是"插件不兼容"的实际表现。
+
+- 聊天链路与用量查询**共用同一个代理决策**：`HTTPS_PROXY` 等环境变量优先，其次读 Windows `Internet Settings` 的已启用系统代理；两者都没有则直连。未配置代理的机器行为不变。
+- 代理通过 `options.fetch` 注入 pi-ai（这是 pi-ai 支持的官方入口），并强制 `transport: "sse"`——WebSocket 通道不接受自定义 fetch，走代理会失败。
+- `undici` 的 `fetch` 与 `ProxyAgent` 必须来自同一实例，混用不同版本会得到 `UND_ERR_INVALID_ARG`；本插件用一次懒加载同时取二者，直连时完全不加载 `undici`。
+- 依赖对齐 DSH 0.2.1-rc.1：`@earendil-works/pi-ai` 从 0.87.1 升到 `^1.1.0`（与 `dsh-llm-pi-ai@0.2.1-rc.1` 的依赖范围一致），peer 全部改为 `0.2.1-rc.1`、`cordis ~4.0.5`、`cordis-plugin-loader ~1.0.6`、`schemastery ~3.18.5`。
+- 0.1.1 的用量代理修复保留：20 秒超时、加载失败可点击重试、不隐藏整个控件。
 
 ## 安装（desktop profile）
 
@@ -34,7 +37,7 @@ https://github.com/hxd2xff-png/dsh-codex-connect
 pnpm add github:hxd2xff-png/dsh-codex-connect --config.auto-install-peers=true
 ```
 
-然后通过 DSH 的 bundle 管理启用 `dsh-codex-connect`，不要重复插入同名插件。DSH 相关包保留为 peer，避免为宿主服务创建不一致的独立副本；`dsh-llm-pi-ai` 的 brand、util-values 等普通传递依赖由包管理器自动安装。宿主需与声明的 `0.2.0-rc.2` DSH 包版本兼容。
+然后通过 DSH 的 bundle 管理启用 `dsh-codex-connect`，不要重复插入同名插件。DSH 相关包保留为 peer，避免为宿主服务创建不一致的独立副本；`dsh-llm-pi-ai` 的 brand、util-values 等普通传递依赖由包管理器自动安装。宿主需为 DSH `0.2.1-rc.1`。
 
 本地源码安装方式：
 
@@ -76,6 +79,7 @@ bundle 自带的 `cordis.patch.yml` 会插入宿主插件，不要在 profile �
 DSH → PiAiAdapter → pi-ai openAICodexResponsesApi
     → https://chatgpt.com/backend-api/codex/responses
     （Authorization: Bearer <access_token from ~/.codex/auth.json>）
+    （fetch: 插件注入的代理感知 fetch，仅在检测到代理时生效）
 ```
 
 - **凭据只读**：插件只读 Codex CLI 的 auth.json，绝不写入。Codex CLI 是身份权威。
@@ -93,7 +97,7 @@ pnpm run check
 
 `check` 检查两端语法并真实导入宿主模块，能发现缺少依赖；它不代表 DSH 中插件已经激活。安装更新后建议完整退出并重新打开 DSH，再刷新页面并检查上面的同源用量接口。不要在当前会话依赖该 provider 时禁用插件，否则该会话会失去 adapter。
 
-用量接口依赖可访问的 ChatGPT 网络与有效的 Codex CLI 登录态。若系统代理变更，需要重新加载插件/进程使新代理生效；本版不管理 PAC 或 SOCKS 代理，也不自动续期登录凭据。Windows 按协议配置代理时读取 `https=` 条目。
+用量接口依赖可访问的 ChatGPT 网络与有效的 Codex CLI 登录态。系统代理在插件加载时读取一次；代理变更后需要重新加载插件（退出并重开 DSH）才生效。本版不管理 PAC 或 SOCKS 代理，也不自动续期登录凭据。Windows 按协议配置代理时读取 `https=` 条目。
 
 ## 已知限制
 
