@@ -82,6 +82,14 @@ bundle 自带的 `cordis.patch.yml` 会插入宿主插件，不要在 profile �
 
 ## 工作原理
 
+### 上下文自动压缩
+
+Codex 路由在每个模型步骤前检查 DSH 的上下文 token 计量。输入与已声明的输出预留合计达到模型上下文窗口的 **90%（含）** 时，先压缩，再发送请求。只影响 `codex-subscription`，其他 provider 保持原行为。
+
+压缩采用 Codex 独立作用域中的 DSH 基础压缩事务，生成语义摘要并保留近期消息；原始事件仍保留在会话日志中。无需根作用域提供 `compaction` 服务，也不修改 ACP/bili 等插件的全局策略。摘要请求按模型容量分段，即使原上下文已经超过 100%，也不会把整份超限历史再发给摘要模型。
+
+压缩后重新计量；仍达阈值时最多连续处理八次。取消、摘要服务故障或没有可安全压缩的内容时保留原会话并报告原因。计量服务暂未就绪时仅记录告警，不会因此禁用模型或拦截普通请求。修改后需重新加载插件。
+
 ```
 DSH → PiAiAdapter → pi-ai openAICodexResponsesApi
     → https://chatgpt.com/backend-api/codex/responses

@@ -45,6 +45,7 @@
     }
   },
   "scripts": {
+    "test": "node --test test/*.test.mjs",
     "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/compatibility.js && node --input-type=module -e \"await import('./lib/index.js'); console.log('Host module import OK')\""
   },
   "dependencies": {
@@ -53,6 +54,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.5",
+    "@deepseek-ai/dsh-compaction-basic": ">=0.2.1-rc.1",
     "@deepseek-ai/dsh-llm": ">=0.2.1-rc.1",
     "@deepseek-ai/dsh-llm-pi-ai": ">=0.2.1-rc.1",
     "@deepseek-ai/schemastery": ">=3.18.5",
