@@ -41,21 +41,26 @@ pnpm add github:hxd2xff-png/dsh-codex-connect --config.auto-install-peers=true
 
 然后通过 DSH 的 bundle 管理启用 `dsh-codex-connect`，不要重复插入同名插件。DSH 相关包保留为 peer，避免为宿主服务创建不一致的独立副本；`dsh-llm-pi-ai` 的 brand、util-values 等普通传递依赖由包管理器自动安装。宿主需为 DSH `0.2.1-rc.1`。
 
-本地源码安装方式：
+本地源码安装方式。**所有路径都必须动态识别，不要把任何设备专属绝对路径写进配置或文档**（`file:C:/Users/<name>/...` 这类写法换一台机器就断）：
 
 ```powershell
-# 在 desktop profile 的 package.json 中设置：
-# dependencies["dsh-codex-connect"] = "file:C:/完整路径/dsh-codex-connect"
-# dsh.profile.bundles 中加入 "dsh-codex-connect"（只加一次）
-# 源码目录必须在 node_modules 之外。
+# 1) 动态定位 profile 与 DSH 运行时，不写死盘符和用户名
+$dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
+$profile = Join-Path $dshHome 'profiles\desktop'
+$runtime = Join-Path $env:LOCALAPPDATA 'Programs\DeepSeek Harness\resources\runtime'
 
-Set-Location "$env:USERPROFILE\.dsh\profiles\desktop"
-$runtime = "$env:LOCALAPPDATA\Programs\DeepSeek Harness\resources\runtime"
+# 2) 依赖声明用 profile 相对路径（与 dsh-web-restart-button / dsh-workbuddy-space 同一形态）：
+#    dependencies["dsh-codex-connect"] = "file:./node_modules/dsh-codex-connect"
+#    dsh.profile.bundles 中加入 "dsh-codex-connect"（只加一次）
+#    相对路径只在 profile 内解析，换设备、换目录都不用改配置。
+
+Set-Location $profile
 $node = (Get-Command node -ErrorAction Stop).Source
-& $node "$runtime\pnpm\bin\pnpm.mjs" install --ignore-scripts
+& $node (Join-Path $runtime 'pnpm\bin\pnpm.mjs') install --ignore-scripts
 
 # 安装完成后退出并重新打开 DeepSeek Harness。
-curl.exe -i --max-time 30 http://127.0.0.1:19387/plugins/dsh-codex-connect/usage
+# 端口以 DSH 启动时实际打印的为准，不要写死：
+curl.exe -i --max-time 30 "http://127.0.0.1:<端口>/plugins/dsh-codex-connect/usage"
 ```
 
 bundle 自带的 `cordis.patch.yml` 会插入宿主插件，不要在 profile 的 patch 中再次 insert。
