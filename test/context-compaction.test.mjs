@@ -18,7 +18,7 @@ function setup(tokens, overrides = {}, options = {}) {
   return { agent, runError: async (code='CONTEXT_WINDOW_EXCEEDED') => {
     const handler=handlers.get('agent/request-error'); assert.equal(typeof handler,'function','provider overflow needs forced compaction recovery');
     return handler({agent,failure:{code},signal:new AbortController().signal},async()=>({kind:'stop'}));
-  }, run: (signal = new AbortController().signal) => handlers.get('agent/pre-step')({ agent, signal }, async () => { continued++; return { kind: 'enter' } }), get compressed() { return compressed }, get continued() { return continued } };
+  }, run: (signal = new AbortController().signal) => handlers.get('agent/pre-step')({ agent, signal }, async () => { continued++; return { kind: 'enter' } }), emit: event => handlers.get('session/event')?.(session, event), get compressed() { return compressed }, get continued() { return continued } };
 }
 
 test('89.9% passes without compaction', async () => { const s = setup(899); await s.run(); assert.equal(s.compressed, 0); assert.equal(s.continued, 1) });
@@ -62,4 +62,54 @@ test('provider-confirmed overflow forces compression even below estimated 90%', 
 });
 test('non-context failures do not trigger compaction retries', async () => {
   const s=setup(500);assert.deepEqual(await s.runError('RATE_LIMIT'),{kind:'stop'});assert.equal(s.compressed,0);
+});
+
+// A pending switch must win over the stale header, otherwise compaction keeps
+// spending the quota of the provider the session just left.
+const pendingSwitch = (selection) => ({
+  sessionProjections: { stateOf: () => ({ pending: selection, lastUsed: { provider: 'codex-subscription', model: 'test' } }) },
+});
+test('a pending switch away from Codex skips Codex compaction despite a stale header', async () => {
+  const s = setup(999, pendingSwitch({ provider: 'workbuddy', model: 'deepseek-v4.1-flash' }));
+  await s.run(); assert.equal(s.compressed, 0); assert.equal(s.continued, 1);
+});
+test('a pending switch keeps Codex compaction when both routes are Codex', async () => {
+  let asked;
+  const s = setup(999, {
+    ...pendingSwitch({ provider: 'codex-subscription', model: 'gpt-5.6-sol' }),
+    llm: { resolveModelInfo: async (provider, model) => { asked = `${provider}/${model}`; return { context: { contextWindow: 1000 } }; } },
+  });
+  await s.run(); assert.equal(asked, 'codex-subscription/test'); assert.equal(s.compressed, 1);
+});
+test('a pending switch to Codex never compacts on the stale non-Codex route', async () => {
+  let asked;
+  const s = setup(999, {
+    ...pendingSwitch({ provider: 'codex-subscription', model: 'gpt-5.6-sol' }),
+    llm: { resolveModelInfo: async (provider, model) => { asked = `${provider}/${model}`; return { context: { contextWindow: 1000 } }; } },
+  });
+  s.agent.session.requestHeader = () => ({ config: { provider: 'workbuddy', model: 'deepseek-v4.1-flash' } });
+  await s.run(); assert.equal(asked, undefined); assert.equal(s.compressed, 0); assert.equal(s.continued, 1);
+});
+test('a restored session without a pending switch uses its last used selection', async () => {
+  const s = setup(999, { sessionProjections: { stateOf: () => ({ pending: null, lastUsed: { provider: 'workbuddy', model: 'deepseek-v4.1-flash' } }) } });
+  await s.run(); assert.equal(s.compressed, 0); assert.equal(s.continued, 1);
+});
+test('observed model selections gate compaction when no projection service exists', async () => {
+  const s = setup(999); s.emit({ type: 'model/selection', data: { provider: 'workbuddy', model: 'deepseek-v4.1-flash' } });
+  await s.run(); assert.equal(s.compressed, 0); assert.equal(s.continued, 1);
+});
+test('a throwing projection service falls back to the header instead of failing the step', async () => {
+  const s = setup(999, { sessionProjections: { stateOf: () => { throw new Error('registry disposed'); } } });
+  await s.run(); assert.equal(s.compressed, 1); assert.equal(s.continued, 1);
+});
+test('assistant messages still release overflow retry ownership', async () => {
+  let tokens = 500;
+  const s = setup(0, {
+    tokenMeter: { measure: () => ({ totalTokens: tokens }) },
+    compaction: { compactForOverflow: async () => { tokens -= 50; } },
+  });
+  for (let round = 0; round < 3; round++) {
+    assert.deepEqual(await s.runError(), { kind: 'retry' });
+    s.emit({ type: 'assistant/message' });
+  }
 });
